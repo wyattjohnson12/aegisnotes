@@ -1,0 +1,38 @@
+# AegisNotes runtime dependencies.
+# Pinned to versions that are known to build on Raspberry Pi OS (aarch64).
+# No package in this list makes outbound API calls.
+
+# --- Web framework ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+jinja2==3.1.4
+
+# --- Configuration ---
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# --- Security ---
+argon2-cffi==23.1.0
+itsdangerous==2.2.0
+
+# --- File handling ---
+python-magic==0.4.27          # libmagic-based mime sniffing
+
+# --- OCR pipeline (Phase 2) ---
+pytesseract==0.3.13
+Pillow==10.4.0
+opencv-python-headless==4.10.0.84
+numpy==2.0.2
+pdf2image==1.17.0
+
+# --- Intelligence (Phase 3-4) — all pure-Python, no model downloads ---
+# (TF-IDF, summarization, flashcard generation are hand-rolled and have
+#  no third-party ML dependencies.)
+
+# --- Watcher & background tasks (Phase 6) ---
+watchdog==5.0.3
+
+# --- Dev / test ---
+pytest==8.3.3
+httpx==0.27.2

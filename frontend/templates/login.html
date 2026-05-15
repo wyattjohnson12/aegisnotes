@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="same-origin" />
+    <title>AegisNotes — Sign in</title>
+    <link rel="stylesheet" href="/static/css/main.css" />
+</head>
+<body class="centered">
+    <main class="card login-card">
+        <h1 class="brand">AegisNotes</h1>
+        <p class="muted">Self-hosted intelligent note ingestion.</p>
+
+        <form id="login-form" autocomplete="on" novalidate>
+            <label for="username">Username</label>
+            <input id="username" name="username" type="text"
+                   autocomplete="username" required minlength="1" maxlength="120" />
+
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password"
+                   autocomplete="current-password" required minlength="1" />
+
+            <button type="submit" class="primary">Sign in</button>
+            <p id="login-error" class="error" role="alert" hidden></p>
+        </form>
+    </main>
+
+    <script type="module" src="/static/js/api.js"></script>
+    <script type="module" src="/static/js/login.js"></script>
+</body>
+</html>

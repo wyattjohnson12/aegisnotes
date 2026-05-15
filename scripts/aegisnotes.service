@@ -1,0 +1,48 @@
+# AegisNotes — systemd unit.
+#
+# Install:
+#   sudo cp scripts/aegisnotes.service /etc/systemd/system/aegisnotes.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now aegisnotes
+#
+# Inspect:
+#   systemctl status aegisnotes
+#   journalctl -u aegisnotes -f
+#
+# Edit REPO_ROOT below to match the absolute path of the checkout, and the
+# User= line to the unprivileged account that owns the repo.
+
+[Unit]
+Description=AegisNotes — self-hosted note ingestion (Raspberry Pi)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+
+# Absolute path to the repo checkout.
+WorkingDirectory=/home/pi/AegisNotes
+
+# Run with a single worker — see src/main.py for the rationale.
+ExecStart=/home/pi/AegisNotes/.venv/bin/uvicorn src.main:app \
+    --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers
+
+Restart=on-failure
+RestartSec=3
+
+# Resource hygiene
+LimitNOFILE=4096
+MemoryHigh=1G
+MemoryMax=1.5G
+
+# Hardening — adjust if you need to write outside the checkout.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/pi/AegisNotes/data
+
+[Install]
+WantedBy=multi-user.target
