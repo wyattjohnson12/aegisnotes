@@ -1,8 +1,13 @@
 """Note endpoints.
 
-Phase 2 returns real ``notes`` data (raw OCR text + cleaned text).
-Phase 3 will add topic trees, summaries, tags, and links — the route
-shapes stay backward-compatible.
+Python 3.13 / Pydantic v2 compatibility notes
+---------------------------------------------
+* Pydantic models defined first, route handlers after.
+* No manual string forward refs; classmethod return annotations are bare.
+* ``response_model=None`` on every ``dict``-returning route so FastAPI
+  does not try to build a response schema from a bare ``dict``.
+* The ``from_`` query parameter uses Pydantic v2's ``Field``/``Query``
+  ``alias`` argument — no v1 ``Config`` inner class.
 """
 from __future__ import annotations
 
@@ -22,11 +27,14 @@ from src.database.repositories import NotesRepository, UploadsRepository
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
 
+# ---------------------------------------------------------------------------
+# Response models
+# ---------------------------------------------------------------------------
 class NoteResponse(BaseModel):
     id: int
     upload_id: int
     title: str
-    course: Optional[str]
+    course: Optional[str] = None
     language: str
     raw_text: str
     cleaned_text: str
@@ -34,7 +42,7 @@ class NoteResponse(BaseModel):
     updated_at: str
 
     @classmethod
-    def from_model(cls, note: Note) -> "NoteResponse":
+    def from_model(cls, note: Note) -> NoteResponse:
         return cls(
             id=note.id,
             upload_id=note.upload_id,
@@ -52,14 +60,14 @@ class NoteListItem(BaseModel):
     id: int
     upload_id: int
     title: str
-    course: Optional[str]
+    course: Optional[str] = None
     language: str
     chars: int
     created_at: str
     updated_at: str
 
     @classmethod
-    def from_model(cls, note: Note) -> "NoteListItem":
+    def from_model(cls, note: Note) -> NoteListItem:
         return cls(
             id=note.id,
             upload_id=note.upload_id,
@@ -72,7 +80,10 @@ class NoteListItem(BaseModel):
         )
 
 
-@router.get("")
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+@router.get("", response_model=None)
 def list_notes(
     course: Optional[str] = None,
     tag: Optional[str] = None,
@@ -100,7 +111,7 @@ def list_notes(
     }
 
 
-@router.get("/{note_id}")
+@router.get("/{note_id}", response_model=None)
 def get_note(
     note_id: int,
     user: User = Depends(require_current_user),
@@ -112,19 +123,13 @@ def get_note(
     return {"note": NoteResponse.from_model(note).model_dump()}
 
 
-@router.get("/by-upload/{upload_id}")
+@router.get("/by-upload/{upload_id}", response_model=None)
 def get_note_by_upload(
     upload_id: int,
     user: User = Depends(require_current_user),
     notes_repo: NotesRepository = Depends(get_notes_repo),
     uploads_repo: UploadsRepository = Depends(get_uploads_repo),
 ) -> dict:
-    """Return the note produced by a given upload, plus its current status.
-
-    Lets the dashboard ask "is upload N ready?" without needing to know
-    the resulting note id. Returns ``note: null`` when the upload is
-    still pending/processing/failed.
-    """
     upload = uploads_repo.get(upload_id)
     if upload is None:
         raise HTTPException(status_code=404, detail="upload not found")
@@ -139,21 +144,33 @@ def get_note_by_upload(
 # ---------------------------------------------------------------------------
 # Phase 3+ stubs — kept so the frontend contract is stable.
 # ---------------------------------------------------------------------------
-@router.get("/{note_id}/topics")
-def get_topics(note_id: int, user: User = Depends(require_current_user)) -> dict:
+@router.get("/{note_id}/topics", response_model=None)
+def get_topics(
+    note_id: int,
+    user: User = Depends(require_current_user),
+) -> dict:
     return {"topics": []}
 
 
-@router.get("/{note_id}/summary")
-def get_summary(note_id: int, user: User = Depends(require_current_user)) -> dict:
+@router.get("/{note_id}/summary", response_model=None)
+def get_summary(
+    note_id: int,
+    user: User = Depends(require_current_user),
+) -> dict:
     return {"summary": None}
 
 
-@router.get("/{note_id}/flashcards")
-def get_flashcards(note_id: int, user: User = Depends(require_current_user)) -> dict:
+@router.get("/{note_id}/flashcards", response_model=None)
+def get_flashcards(
+    note_id: int,
+    user: User = Depends(require_current_user),
+) -> dict:
     return {"flashcards": []}
 
 
-@router.get("/{note_id}/links")
-def get_links(note_id: int, user: User = Depends(require_current_user)) -> dict:
+@router.get("/{note_id}/links", response_model=None)
+def get_links(
+    note_id: int,
+    user: User = Depends(require_current_user),
+) -> dict:
     return {"links": []}

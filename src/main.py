@@ -10,16 +10,24 @@ Production (Pi):
 
 Use a single worker on the Pi — SQLite is happiest with one writer, and the
 background OCR pipeline coordinates through the database, not memory.
+
+Python 3.13 / Pydantic v2 compatibility notes
+---------------------------------------------
+* Routes that return ``HTMLResponse`` / ``FileResponse`` / ``JSONResponse``
+  do not need ``response_model=None`` — FastAPI detects that the return
+  annotation is a ``Response`` subclass and skips schema generation.
+* ``/healthz`` returns ``dict`` and therefore *does* declare
+  ``response_model=None``.
+* No forward references and no Pydantic models defined in this file.
 """
 from __future__ import annotations
 
-import json
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import settings
@@ -90,8 +98,6 @@ def create_app() -> FastAPI:
     # ----- HTML routes ---------------------------------------------------
     @app.get("/", include_in_schema=False)
     async def root(request: Request) -> HTMLResponse:
-        # Cheap session check to decide which shell to render. The JS layer
-        # confirms via /api/auth/me before rendering protected content.
         token = read_session_cookie(request)
         page = "login.html"
         if token:
@@ -114,7 +120,7 @@ def create_app() -> FastAPI:
         path = settings.templates_dir / "dashboard.html"
         return HTMLResponse(path.read_text(encoding="utf-8"))
 
-    @app.get("/healthz", include_in_schema=False)
+    @app.get("/healthz", include_in_schema=False, response_model=None)
     async def healthz() -> dict:
         return {"ok": True, "version": __version__}
 
@@ -146,7 +152,6 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_exc_handler(request: Request, exc: Exception) -> JSONResponse:
-        # Never leak tracebacks to clients in production.
         log.exception("Unhandled exception during %s %s", request.method, request.url.path)
         return JSONResponse(
             {"error": {"code": "internal_error", "message": "internal server error"}},

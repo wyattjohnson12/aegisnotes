@@ -1,4 +1,10 @@
-"""Tag endpoints (Phase 4+)."""
+"""Tag endpoints (Phase 4+).
+
+Python 3.13 / Pydantic v2 compatibility notes
+---------------------------------------------
+* ``response_model=None`` so FastAPI does not attempt a response schema
+  from the bare ``dict`` return annotation.
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
@@ -9,11 +15,14 @@ from src.database.models import User
 router = APIRouter(prefix="/api/tags", tags=["tags"])
 
 
-@router.get("")
+@router.get("", response_model=None)
 def list_tags(user: User = Depends(require_current_user)) -> dict:
     return {"tags": []}
 
 
-@router.get("/{name}/notes")
-def notes_for_tag(name: str, user: User = Depends(require_current_user)) -> dict:
+@router.get("/{name}/notes", response_model=None)
+def notes_for_tag(
+    name: str,
+    user: User = Depends(require_current_user),
+) -> dict:
     return {"notes": [], "tag": name}

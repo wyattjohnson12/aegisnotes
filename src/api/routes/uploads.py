@@ -1,4 +1,17 @@
-"""Upload endpoints."""
+"""Upload endpoints.
+
+Python 3.13 / Pydantic v2 compatibility notes
+---------------------------------------------
+* No string forward references — all Pydantic models live above the
+  route handlers that reference them.
+* Classmethod return annotations are bare (``-> UploadResponse``), not
+  ``-> "UploadResponse"``. Under ``from __future__ import annotations``,
+  manual quoting becomes a string-within-a-string that Pydantic v2
+  evaluates to the bare string ``'UploadResponse'`` and mishandles.
+* Every ``dict``-returning route declares ``response_model=None`` so
+  FastAPI does not try to build a response schema from the un-parameterised
+  ``dict`` annotation.
+"""
 from __future__ import annotations
 
 from typing import Optional
@@ -21,6 +34,9 @@ log = get_logger(__name__)
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
 
+# ---------------------------------------------------------------------------
+# Response models — defined before any route handler that references them.
+# ---------------------------------------------------------------------------
 class UploadResponse(BaseModel):
     id: int
     original_name: str
@@ -32,7 +48,7 @@ class UploadResponse(BaseModel):
     file_sha256: str
 
     @classmethod
-    def from_model(cls, upload: Upload, *, duplicated: bool) -> "UploadResponse":
+    def from_model(cls, upload: Upload, *, duplicated: bool) -> UploadResponse:
         return cls(
             id=upload.id,
             original_name=upload.original_name,
@@ -55,7 +71,7 @@ class UploadListItem(BaseModel):
     processed_at: Optional[str] = None
 
     @classmethod
-    def from_model(cls, upload: Upload) -> "UploadListItem":
+    def from_model(cls, upload: Upload) -> UploadListItem:
         return cls(
             id=upload.id,
             original_name=upload.original_name,
@@ -67,7 +83,14 @@ class UploadListItem(BaseModel):
         )
 
 
-@router.post("", dependencies=[Depends(require_csrf)])
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+@router.post(
+    "",
+    response_model=None,
+    dependencies=[Depends(require_csrf)],
+)
 async def create_upload(
     request: Request,
     file: UploadFile,
@@ -75,8 +98,6 @@ async def create_upload(
 ) -> dict:
     handler = UploadHandler()
 
-    # FastAPI's UploadFile exposes a SpooledTemporaryFile-like stream.
-    # Content-Length comes through on the underlying request when set.
     content_length = request.headers.get("content-length")
     cl = int(content_length) if content_length and content_length.isdigit() else None
 
@@ -95,15 +116,17 @@ async def create_upload(
             detail={"code": exc.code, "message": str(exc)},
         ) from exc
 
-    # Wake the OCR worker so it doesn't wait for its next poll tick.
-    # Safe no-op for duplicates (status is already terminal in that case).
     if not result.duplicated:
         signal_work()
 
-    return {"upload": UploadResponse.from_model(result.upload, duplicated=result.duplicated).model_dump()}
+    return {
+        "upload": UploadResponse.from_model(
+            result.upload, duplicated=result.duplicated
+        ).model_dump()
+    }
 
 
-@router.get("")
+@router.get("", response_model=None)
 def list_uploads(
     status_filter: Optional[str] = None,
     limit: int = 100,
@@ -121,7 +144,7 @@ def list_uploads(
     }
 
 
-@router.get("/{upload_id}")
+@router.get("/{upload_id}", response_model=None)
 def get_upload(
     upload_id: int,
     user: User = Depends(require_current_user),

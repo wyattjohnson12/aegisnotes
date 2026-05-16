@@ -1,6 +1,9 @@
 """System status & log endpoints.
 
-Phase 1 exposes a lightweight health check and the operational log mirror.
+Python 3.13 / Pydantic v2 compatibility notes
+---------------------------------------------
+* ``response_model=None`` on every dict-returning route.
+* No Pydantic models declared in this file, so no forward-ref hazard.
 """
 from __future__ import annotations
 
@@ -22,13 +25,11 @@ from src.utils.time_utils import isoformat_utc
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 
-@router.get("/status")
+@router.get("/status", response_model=None)
 def status(
     user: User = Depends(require_current_user),
     uploads_repo: UploadsRepository = Depends(get_uploads_repo),
 ) -> dict:
-    pending = uploads_repo.list(status="pending", limit=1)
-    processing = uploads_repo.list(status="processing", limit=1)
     processed = uploads_repo.list(status="processed", limit=1)
     last_processed_at = processed[0].processed_at if processed else None
 
@@ -41,7 +42,7 @@ def status(
     }
 
 
-@router.get("/logs")
+@router.get("/logs", response_model=None)
 def logs(
     level: Optional[str] = Query(default=None),
     limit: int = Query(default=200, ge=1, le=1000),
