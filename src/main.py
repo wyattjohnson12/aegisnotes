@@ -124,7 +124,7 @@ def create_app() -> FastAPI:
     async def healthz() -> dict:
         return {"ok": True, "version": __version__}
 
-    @app.get("/favicon.ico", include_in_schema=False)
+    @app.get("/favicon.ico", include_in_schema=False, response_model=None)
     async def favicon() -> FileResponse | JSONResponse:
         ico = settings.static_dir / "img" / "favicon.ico"
         if ico.exists():
