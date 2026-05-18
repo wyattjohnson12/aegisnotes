@@ -22,6 +22,7 @@ Python 3.13 / Pydantic v2 compatibility notes
 """
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -61,6 +62,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             log.warning("PRODUCTION CHECK: %s", issue)
 
     apply_schema()
+
+    # Env-driven admin bootstrap (Railway / Docker). Idempotent: only
+    # creates the user if a row with that username does not exist yet.
+    bs_user = os.environ.get("AEGIS_BOOTSTRAP_ADMIN_USERNAME", "").strip()
+    bs_pwd = os.environ.get("AEGIS_BOOTSTRAP_ADMIN_PASSWORD", "")
+    if bs_user and bs_pwd:
+        repo = UsersRepository()
+        if repo.get_by_username(bs_user) is None:
+            repo.create(username=bs_user, password=bs_pwd, role="admin")
+            log.info("Bootstrapped admin user %r from env.", bs_user)
+        else:
+            log.info("Bootstrap admin %r already exists; not modified.", bs_user)
+
     log.info("AegisNotes %s starting on %s:%s", __version__, settings.host, settings.port)
     await start_workers()
     try:
