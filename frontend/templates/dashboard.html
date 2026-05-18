@@ -69,14 +69,23 @@
         </section>
 
         <section class="card">
-            <h2>Notes</h2>
-            <p class="muted">
-                Once OCR and structuring are complete (Phases 2-4), parsed notes
-                will appear here grouped by course and topic.
-            </p>
-            <div id="notes-list" class="notes-grid">
-                <p class="muted">No notes yet.</p>
-            </div>
+            <header class="card-header">
+                <h2>Search</h2>
+                <form id="search-form" class="filters" autocomplete="off">
+                    <input id="search-input" type="search" placeholder="Search notes…"
+                           maxlength="200" />
+                    <button class="link-btn" type="submit">Go</button>
+                </form>
+            </header>
+            <div id="search-results" class="search-results"></div>
+        </section>
+
+        <section class="card">
+            <header class="card-header">
+                <h2>Tags</h2>
+                <button id="tags-refresh-btn" class="link-btn">Refresh</button>
+            </header>
+            <div id="tags-cloud" class="tags-cloud muted">loading…</div>
         </section>
     </main>
 

@@ -1,29 +1,51 @@
 """Note endpoints.
 
-Python 3.13 / Pydantic v2 compatibility notes
----------------------------------------------
-* Pydantic models defined first, route handlers after.
-* No manual string forward refs; classmethod return annotations are bare.
-* ``response_model=None`` on every ``dict``-returning route so FastAPI
-  does not try to build a response schema from a bare ``dict``.
-* The ``from_`` query parameter uses Pydantic v2's ``Field``/``Query``
-  ``alias`` argument — no v1 ``Config`` inner class.
+Phase 3 wires up the previously-stubbed intelligence endpoints:
+
+* ``GET  /api/notes``                        — list (now includes tag + summary preview)
+* ``GET  /api/notes/{id}``                   — full note (raw + cleaned text)
+* ``GET  /api/notes/by-upload/{upload_id}``  — fetch by upload, returns upload status
+* ``GET  /api/notes/{id}/topics``            — topic tree
+* ``GET  /api/notes/{id}/summary``           — current summary
+* ``GET  /api/notes/{id}/tags``              — tag chips (with scores)
+* ``GET  /api/notes/{id}/links``             — related notes
+* ``GET  /api/notes/{id}/flashcards``        — Phase 5 stub (kept stable)
+* ``POST /api/notes/{id}/reanalyze``         — re-run intelligence pipeline
+
+Pydantic v2 / Python 3.13: all models defined before route handlers,
+``response_model=None`` on every dict-returning route, self-referential
+``TopicDTO`` rebuilt with ``model_rebuild()`` after definition.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.api.dependencies import (
+    get_links_repo,
     get_notes_repo,
+    get_summaries_repo,
+    get_tags_repo,
+    get_topics_repo,
     get_uploads_repo,
+    require_csrf,
     require_current_user,
 )
-from src.database.models import Note, User
-from src.database.repositories import NotesRepository, UploadsRepository
+from src.database.models import Note, Summary, Tag, Topic, User
+from src.database.repositories import (
+    LinksRepository,
+    NotesRepository,
+    SummariesRepository,
+    TagsRepository,
+    TopicsRepository,
+    UploadsRepository,
+)
+from src.intelligence.processor import IntelligenceProcessor
+from src.utils.logger import get_logger
 
+log = get_logger(__name__)
 router = APIRouter(prefix="/api/notes", tags=["notes"])
 
 
@@ -80,6 +102,57 @@ class NoteListItem(BaseModel):
         )
 
 
+class TopicDTO(BaseModel):
+    id: int
+    title: str
+    level: int
+    position: int
+    content: str
+    children: List[TopicDTO] = []
+
+    @classmethod
+    def from_model(cls, t: Topic) -> TopicDTO:
+        return cls(
+            id=t.id or 0,
+            title=t.title,
+            level=t.level,
+            position=t.position,
+            content=t.content,
+            children=[cls.from_model(c) for c in t.children],
+        )
+
+
+class TagDTO(BaseModel):
+    name: str
+    normalized: str
+    score: float
+
+    @classmethod
+    def from_pair(cls, tag: Tag, score: float) -> TagDTO:
+        return cls(name=tag.name, normalized=tag.normalized_name, score=float(score))
+
+
+class SummaryDTO(BaseModel):
+    text: str
+    algorithm: str
+    created_at: str
+
+    @classmethod
+    def from_model(cls, s: Summary) -> SummaryDTO:
+        return cls(text=s.summary_text, algorithm=s.algorithm, created_at=s.created_at)
+
+
+class RelatedNote(BaseModel):
+    note_id: int
+    title: str
+    strength: float
+    shared_tags: List[str]
+
+
+# Self-referential model: ensure Pydantic v2 finalises the schema.
+TopicDTO.model_rebuild()
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -95,19 +168,10 @@ def list_notes(
     user: User = Depends(require_current_user),
     notes_repo: NotesRepository = Depends(get_notes_repo),
 ) -> dict:
-    # Phase 2 supports the ``course`` filter only. ``tag``/``q``/``from``/
-    # ``to`` are reserved for Phases 4-5 and pass through unchanged so the
-    # client contract is stable.
     notes = notes_repo.list_recent(course=course, limit=limit, offset=offset)
     return {
         "notes": [NoteListItem.from_model(n).model_dump() for n in notes],
-        "filters": {
-            "course": course,
-            "tag": tag,
-            "q": q,
-            "from": from_,
-            "to": to,
-        },
+        "filters": {"course": course, "tag": tag, "q": q, "from": from_, "to": to},
     }
 
 
@@ -142,22 +206,69 @@ def get_note_by_upload(
 
 
 # ---------------------------------------------------------------------------
-# Phase 3+ stubs — kept so the frontend contract is stable.
+# Phase 3 intelligence endpoints
 # ---------------------------------------------------------------------------
 @router.get("/{note_id}/topics", response_model=None)
 def get_topics(
     note_id: int,
     user: User = Depends(require_current_user),
+    notes_repo: NotesRepository = Depends(get_notes_repo),
+    topics_repo: TopicsRepository = Depends(get_topics_repo),
 ) -> dict:
-    return {"topics": []}
+    if notes_repo.get(note_id) is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    tree = topics_repo.get_tree(note_id)
+    return {"topics": [TopicDTO.from_model(t).model_dump() for t in tree]}
 
 
 @router.get("/{note_id}/summary", response_model=None)
 def get_summary(
     note_id: int,
     user: User = Depends(require_current_user),
+    notes_repo: NotesRepository = Depends(get_notes_repo),
+    summaries_repo: SummariesRepository = Depends(get_summaries_repo),
 ) -> dict:
-    return {"summary": None}
+    if notes_repo.get(note_id) is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    summary = summaries_repo.get_for_note(note_id)
+    return {"summary": SummaryDTO.from_model(summary).model_dump() if summary else None}
+
+
+@router.get("/{note_id}/tags", response_model=None)
+def get_tags(
+    note_id: int,
+    user: User = Depends(require_current_user),
+    notes_repo: NotesRepository = Depends(get_notes_repo),
+    tags_repo: TagsRepository = Depends(get_tags_repo),
+) -> dict:
+    if notes_repo.get(note_id) is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    pairs = tags_repo.list_for_note(note_id)
+    return {"tags": [TagDTO.from_pair(t, s).model_dump() for t, s in pairs]}
+
+
+@router.get("/{note_id}/links", response_model=None)
+def get_links(
+    note_id: int,
+    user: User = Depends(require_current_user),
+    notes_repo: NotesRepository = Depends(get_notes_repo),
+    links_repo: LinksRepository = Depends(get_links_repo),
+) -> dict:
+    if notes_repo.get(note_id) is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    links = links_repo.list_for_note(note_id, limit=25)
+    out: List[RelatedNote] = []
+    for link, other_id in links:
+        other = notes_repo.get(other_id)
+        if other is None:
+            continue
+        out.append(RelatedNote(
+            note_id=other.id,
+            title=other.title,
+            strength=link.strength,
+            shared_tags=list(link.shared_tags),
+        ))
+    return {"links": [r.model_dump() for r in out]}
 
 
 @router.get("/{note_id}/flashcards", response_model=None)
@@ -165,12 +276,31 @@ def get_flashcards(
     note_id: int,
     user: User = Depends(require_current_user),
 ) -> dict:
+    # Phase 5 territory.
     return {"flashcards": []}
 
 
-@router.get("/{note_id}/links", response_model=None)
-def get_links(
+@router.post(
+    "/{note_id}/reanalyze",
+    response_model=None,
+    dependencies=[Depends(require_csrf)],
+)
+def reanalyze(
     note_id: int,
     user: User = Depends(require_current_user),
+    notes_repo: NotesRepository = Depends(get_notes_repo),
 ) -> dict:
-    return {"links": []}
+    if notes_repo.get(note_id) is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    outcome = IntelligenceProcessor().process(note_id)
+    return {
+        "outcome": {
+            "note_id": outcome.note_id,
+            "topics": outcome.topics,
+            "tags": outcome.tags,
+            "summary_chars": outcome.summary_chars,
+            "links": outcome.links,
+            "skipped": outcome.skipped,
+            "error": outcome.error,
+        }
+    }

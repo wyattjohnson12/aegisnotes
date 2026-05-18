@@ -172,6 +172,18 @@ class OcrProcessor:
                 "OCR processed upload_id=%s note_id=%s pages=%s duration=%sms",
                 upload.id, note.id, result.page_count, result.duration_ms,
             )
+            # Phase 3: run the intelligence pipeline. Safe to fail — the
+            # note is already persisted and the OCR upload is terminal.
+            try:
+                # Local import keeps the OCR module free of intelligence
+                # imports at parse-time, avoiding circular-import risk.
+                from src.intelligence.processor import IntelligenceProcessor
+                IntelligenceProcessor().process(note.id)
+            except Exception:  # noqa: BLE001
+                log.exception(
+                    "Intelligence pipeline failed for note_id=%s (OCR still ok)",
+                    note.id,
+                )
             return ProcessOutcome(
                 upload_id=upload.id,
                 success=True,

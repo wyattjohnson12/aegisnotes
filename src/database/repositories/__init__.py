@@ -10,6 +10,10 @@ from src.database.repositories.sessions_repo import SessionsRepository
 from src.database.repositories.uploads_repo import UploadsRepository
 from src.database.repositories.notes_repo import NotesRepository
 from src.database.repositories.logs_repo import LogsRepository
+from src.database.repositories.topics_repo import TopicsRepository
+from src.database.repositories.tags_repo import TagsRepository
+from src.database.repositories.summaries_repo import SummariesRepository
+from src.database.repositories.links_repo import LinksRepository
 
 __all__ = [
     "UsersRepository",
@@ -17,4 +21,8 @@ __all__ = [
     "UploadsRepository",
     "NotesRepository",
     "LogsRepository",
+    "TopicsRepository",
+    "TagsRepository",
+    "SummariesRepository",
+    "LinksRepository",
 ]

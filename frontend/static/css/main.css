@@ -214,12 +214,86 @@ button.link-btn:hover { text-decoration: underline; }
     color: var(--text);
 }
 
-/* ---------------- Notes grid (future phases) ---------------- */
-.notes-grid {
+/* ---------------- Phase 3: intelligence panel ---------------- */
+.intel-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 12px;
+    margin-top: 12px;
 }
+.intel-block {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 13.5px;
+}
+.intel-block h4 {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.intel-block p { margin: 4px 0; }
+.small { font-size: 11.5px; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip-row.tiny .chip { padding: 1px 6px; font-size: 11px; }
+.chip {
+    display: inline-block;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: default;
+}
+button.chip.tag-chip { cursor: pointer; }
+button.chip.tag-chip:hover { border-color: var(--accent); }
+
+.topic-tree, .topic-tree ul { list-style: none; padding-left: 14px; margin: 0; }
+.topic-tree > li > details { margin-bottom: 4px; }
+.topic-tree summary {
+    cursor: pointer;
+    padding: 2px 0;
+    font-weight: 500;
+}
+.topic-tree p { color: var(--muted); margin: 4px 0 6px 14px; font-size: 13px; }
+
+.related-list { list-style: none; padding: 0; margin: 0; }
+.related-list li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.related-list li:last-child { border-bottom: 0; }
+
+.ocr-toggle { margin-top: 12px; }
+.ocr-toggle summary { cursor: pointer; color: var(--muted); }
+
+.reanalyze-btn { margin-left: 10px; }
+
+/* ---------------- Phase 3: search results ---------------- */
+.search-results { margin-top: 8px; }
+.search-list { list-style: none; padding: 0; margin: 0; }
+.search-list li {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+}
+.search-list li:last-child { border-bottom: 0; }
+.search-list p { color: var(--muted); margin: 4px 0; }
+.search-list mark { background: rgba(110, 168, 255, 0.25); color: inherit; }
+
+#search-form input[type="search"] {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    min-width: 220px;
+    font: inherit;
+}
+
+/* ---------------- Phase 3: tag cloud ---------------- */
+.tags-cloud { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
 
 /* ---------------- Footer ---------------- */
 .footer {

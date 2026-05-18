@@ -107,4 +107,13 @@ export const endpoints = {
     notes:        () => api.getJson("/api/notes"),
     note:         (id) => api.getJson(`/api/notes/${id}`),
     noteByUpload: (uploadId) => api.getJson(`/api/notes/by-upload/${uploadId}`),
+    noteTopics:   (id) => api.getJson(`/api/notes/${id}/topics`),
+    noteSummary:  (id) => api.getJson(`/api/notes/${id}/summary`),
+    noteTags:     (id) => api.getJson(`/api/notes/${id}/tags`),
+    noteLinks:    (id) => api.getJson(`/api/notes/${id}/links`),
+    reanalyze:    (id) => api.postJson(`/api/notes/${id}/reanalyze`, {}),
+    tags:         (limit = 200) => api.getJson(`/api/tags?limit=${limit}`),
+    notesForTag:  (name) => api.getJson(`/api/tags/${encodeURIComponent(name)}/notes`),
+    search:       (q, limit = 50) =>
+                    api.getJson(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`),
 };
