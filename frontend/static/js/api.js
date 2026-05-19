@@ -111,9 +111,19 @@ export const endpoints = {
     noteSummary:  (id) => api.getJson(`/api/notes/${id}/summary`),
     noteTags:     (id) => api.getJson(`/api/notes/${id}/tags`),
     noteLinks:    (id) => api.getJson(`/api/notes/${id}/links`),
+    noteFlashcards: (id) => api.getJson(`/api/notes/${id}/flashcards`),
     reanalyze:    (id) => api.postJson(`/api/notes/${id}/reanalyze`, {}),
+    regenerateFlashcards:
+                  (id) => api.postJson(`/api/notes/${id}/regenerate-flashcards`, {}),
     tags:         (limit = 200) => api.getJson(`/api/tags?limit=${limit}`),
     notesForTag:  (name) => api.getJson(`/api/tags/${encodeURIComponent(name)}/notes`),
     search:       (q, limit = 50) =>
                     api.getJson(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+    review:       ({ limit = 20, noteId, course } = {}) => {
+                    const params = new URLSearchParams({ limit });
+                    if (noteId)  params.set("note_id", noteId);
+                    if (course)  params.set("course", course);
+                    return api.getJson(`/api/flashcards/review?${params}`);
+                  },
+    flashcardStats: () => api.getJson("/api/flashcards/stats"),
 };

@@ -17,6 +17,18 @@ const searchInput = document.getElementById("search-input");
 const searchOut   = document.getElementById("search-results");
 const tagsCloud   = document.getElementById("tags-cloud");
 const tagsRefresh = document.getElementById("tags-refresh-btn");
+const fcCount     = document.getElementById("flashcards-count");
+const studyBtn    = document.getElementById("study-start-btn");
+const studyModal  = document.getElementById("study-modal");
+const studyClose  = document.getElementById("study-close");
+const studyCard   = document.getElementById("study-card");
+const studyFront  = studyCard.querySelector(".study-front");
+const studyBack   = studyCard.querySelector(".study-back");
+const studyProg   = document.getElementById("study-progress");
+const studySrc    = document.getElementById("study-source");
+const studyPrev   = document.getElementById("study-prev");
+const studyNext   = document.getElementById("study-next");
+const studyFlip   = document.getElementById("study-flip");
 
 function fmtBytes(n) {
     if (n < 1024) return `${n} B`;
@@ -103,6 +115,9 @@ async function renderNoteDetail(cell, note) {
             <div class="intel-block" id="links-${note.id}">
                 <h4>Related notes</h4><p class="muted">loading…</p>
             </div>
+            <div class="intel-block" id="flashcards-${note.id}">
+                <h4>Flashcards</h4><p class="muted">loading…</p>
+            </div>
         </div>
         <details class="ocr-toggle">
             <summary>Raw OCR text</summary>
@@ -128,18 +143,47 @@ async function renderNoteDetail(cell, note) {
 }
 
 async function loadIntelligence(noteId) {
-    // Parallel fetch
-    const [sumRes, tagRes, topRes, linkRes] = await Promise.allSettled([
+    const [sumRes, tagRes, topRes, linkRes, fcRes] = await Promise.allSettled([
         endpoints.noteSummary(noteId),
         endpoints.noteTags(noteId),
         endpoints.noteTopics(noteId),
         endpoints.noteLinks(noteId),
+        endpoints.noteFlashcards(noteId),
     ]);
-
     renderSummary(noteId, sumRes);
     renderTagsBlock(noteId, tagRes);
     renderTopicsBlock(noteId, topRes);
     renderLinksBlock(noteId, linkRes);
+    renderFlashcardsBlock(noteId, fcRes);
+}
+
+function renderFlashcardsBlock(noteId, res) {
+    const el = document.getElementById(`flashcards-${noteId}`);
+    if (!el) return;
+    const cards = res.status === "fulfilled" ? (res.value.flashcards || []) : [];
+    if (!cards.length) {
+        el.innerHTML = `
+            <h4>Flashcards</h4>
+            <p class="muted">No cards generated.</p>
+            <button class="link-btn fc-study" data-note-id="${noteId}" disabled>Study</button>
+        `;
+        return;
+    }
+    const preview = cards.slice(0, 3).map((c) => `
+        <li>
+            <strong>${escapeHtml(c.question)}</strong>
+            <span class="muted small">· ${(c.confidence * 100).toFixed(0)}%</span>
+        </li>
+    `).join("");
+    el.innerHTML = `
+        <h4>Flashcards <span class="muted small">· ${cards.length}</span></h4>
+        <ul class="flashcard-preview">${preview}</ul>
+        <button class="link-btn fc-study" data-note-id="${noteId}">Study these</button>
+    `;
+    el.querySelector(".fc-study").addEventListener("click", (e) => {
+        e.stopPropagation();
+        startStudy({ noteId, cards });
+    });
 }
 
 function renderSummary(noteId, res) {
@@ -333,3 +377,85 @@ searchForm.addEventListener("submit", (e) => {
     const q = searchInput.value.trim();
     if (q) runSearch(q);
 });
+
+// ---------------- Study mode ----------------
+let studyDeck = [];
+let studyIdx  = 0;
+let studyShowingBack = false;
+
+async function refreshFlashcardStats() {
+    try {
+        const s = await endpoints.flashcardStats();
+        fcCount.textContent = `${s.total} cards`;
+        studyBtn.disabled = s.total === 0;
+    } catch {
+        fcCount.textContent = "stats unavailable";
+    }
+}
+
+async function startStudy({ noteId = null, cards = null } = {}) {
+    try {
+        if (cards) {
+            studyDeck = cards.map((c) => ({
+                question: c.question, answer: c.answer,
+                note_title: "this note", confidence: c.confidence,
+            }));
+        } else {
+            const res = await endpoints.review({ limit: 25, noteId });
+            studyDeck = res.cards || [];
+        }
+        if (!studyDeck.length) {
+            alert("No flashcards available yet.");
+            return;
+        }
+        studyIdx = 0; studyShowingBack = false;
+        renderStudy();
+        studyModal.hidden = false;
+        document.body.classList.add("modal-open");
+        studyCard.focus();
+    } catch (err) {
+        alert("Could not start study session: " + err.message);
+    }
+}
+
+function renderStudy() {
+    if (!studyDeck.length) return;
+    const c = studyDeck[studyIdx];
+    studyFront.textContent = c.question;
+    studyBack.textContent  = c.answer;
+    studyFront.hidden = studyShowingBack;
+    studyBack.hidden  = !studyShowingBack;
+    studyProg.textContent = `${studyIdx + 1} / ${studyDeck.length}`;
+    studySrc.textContent = c.note_title
+        ? `from "${c.note_title}" · confidence ${(c.confidence * 100).toFixed(0)}%`
+        : "";
+}
+
+function studyAdvance(delta) {
+    studyIdx = (studyIdx + delta + studyDeck.length) % studyDeck.length;
+    studyShowingBack = false;
+    renderStudy();
+}
+
+function closeStudy() {
+    studyModal.hidden = true;
+    document.body.classList.remove("modal-open");
+}
+
+studyBtn.addEventListener("click", () => startStudy());
+studyClose.addEventListener("click", closeStudy);
+studyNext.addEventListener("click", () => studyAdvance(1));
+studyPrev.addEventListener("click", () => studyAdvance(-1));
+studyFlip.addEventListener("click", () => { studyShowingBack = !studyShowingBack; renderStudy(); });
+studyCard.addEventListener("click", () => { studyShowingBack = !studyShowingBack; renderStudy(); });
+
+document.addEventListener("keydown", (e) => {
+    if (studyModal.hidden) return;
+    if (e.key === "Escape") { closeStudy(); }
+    else if (e.key === " ") { e.preventDefault(); studyShowingBack = !studyShowingBack; renderStudy(); }
+    else if (e.key === "ArrowRight") { studyAdvance(1); }
+    else if (e.key === "ArrowLeft")  { studyAdvance(-1); }
+});
+
+refreshFlashcardStats();
+setInterval(refreshFlashcardStats, 15000);

@@ -87,6 +87,40 @@
             </header>
             <div id="tags-cloud" class="tags-cloud muted">loading…</div>
         </section>
+
+        <section class="card">
+            <header class="card-header">
+                <h2>Study mode</h2>
+                <span id="flashcards-count" class="pill muted">…</span>
+            </header>
+            <p class="muted">
+                Auto-generated Q/A cards from your notes. Press
+                <kbd>space</kbd> to flip, <kbd>→</kbd> next, <kbd>←</kbd> back,
+                <kbd>esc</kbd> to exit.
+            </p>
+            <button id="study-start-btn" class="primary" type="button">Start session</button>
+        </section>
+
+        <div id="study-modal" class="study-modal" hidden>
+            <div class="study-shell" role="dialog" aria-modal="true">
+                <header class="study-bar">
+                    <span id="study-progress" class="muted small">— / —</span>
+                    <button id="study-close" class="link-btn" type="button">Close</button>
+                </header>
+                <div id="study-card" class="study-card" tabindex="0">
+                    <div class="study-side study-front"></div>
+                    <div class="study-side study-back" hidden></div>
+                </div>
+                <footer class="study-footer">
+                    <span id="study-source" class="muted small"></span>
+                    <div class="study-controls">
+                        <button id="study-prev" class="link-btn" type="button">← prev</button>
+                        <button id="study-flip" class="link-btn" type="button">flip (space)</button>
+                        <button id="study-next" class="link-btn" type="button">next →</button>
+                    </div>
+                </footer>
+            </div>
+        </div>
     </main>
 
     <footer class="footer">

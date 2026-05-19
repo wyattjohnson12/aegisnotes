@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.api.dependencies import (
+    get_flashcards_repo,
     get_links_repo,
     get_notes_repo,
     get_summaries_repo,
@@ -33,8 +34,9 @@ from src.api.dependencies import (
     require_csrf,
     require_current_user,
 )
-from src.database.models import Note, Summary, Tag, Topic, User
+from src.database.models import Flashcard, Note, Summary, Tag, Topic, User
 from src.database.repositories import (
+    FlashcardsRepository,
     LinksRepository,
     NotesRepository,
     SummariesRepository,
@@ -147,6 +149,28 @@ class RelatedNote(BaseModel):
     title: str
     strength: float
     shared_tags: List[str]
+
+
+class FlashcardDTO(BaseModel):
+    id: int
+    note_id: int
+    source_topic_id: Optional[int] = None
+    question: str
+    answer: str
+    confidence: float
+    created_at: str
+
+    @classmethod
+    def from_model(cls, f: Flashcard) -> FlashcardDTO:
+        return cls(
+            id=f.id,
+            note_id=f.note_id,
+            source_topic_id=f.source_topic_id,
+            question=f.question,
+            answer=f.answer,
+            confidence=float(f.confidence),
+            created_at=f.created_at,
+        )
 
 
 # Self-referential model: ensure Pydantic v2 finalises the schema.
@@ -275,9 +299,38 @@ def get_links(
 def get_flashcards(
     note_id: int,
     user: User = Depends(require_current_user),
+    notes_repo: NotesRepository = Depends(get_notes_repo),
+    flashcards_repo: FlashcardsRepository = Depends(get_flashcards_repo),
 ) -> dict:
-    # Phase 5 territory.
-    return {"flashcards": []}
+    if notes_repo.get(note_id) is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    cards = flashcards_repo.list_for_note(note_id)
+    return {"flashcards": [FlashcardDTO.from_model(c).model_dump() for c in cards]}
+
+
+@router.post(
+    "/{note_id}/regenerate-flashcards",
+    response_model=None,
+    dependencies=[Depends(require_csrf)],
+)
+def regenerate_flashcards(
+    note_id: int,
+    user: User = Depends(require_current_user),
+    notes_repo: NotesRepository = Depends(get_notes_repo),
+) -> dict:
+    """Re-run the intelligence pipeline (which includes flashcard generation).
+
+    Convenience alias for ``/reanalyze`` scoped to the flashcards
+    deliverable — useful for a "regenerate cards" button in the UI.
+    """
+    if notes_repo.get(note_id) is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    outcome = IntelligenceProcessor().process(note_id)
+    return {
+        "flashcards": outcome.flashcards,
+        "skipped": outcome.skipped,
+        "error": outcome.error,
+    }
 
 
 @router.post(
@@ -300,6 +353,7 @@ def reanalyze(
             "tags": outcome.tags,
             "summary_chars": outcome.summary_chars,
             "links": outcome.links,
+            "flashcards": outcome.flashcards,
             "skipped": outcome.skipped,
             "error": outcome.error,
         }
