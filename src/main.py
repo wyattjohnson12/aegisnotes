@@ -38,6 +38,7 @@ from src.api.security import read_session_cookie
 from src.database.repositories import SessionsRepository, UsersRepository
 from src.api.routes import (
     auth as auth_routes,
+    categories as categories_routes,
     flashcards as flashcards_routes,
     notes as notes_routes,
     search as search_routes,
@@ -100,6 +101,7 @@ def create_app() -> FastAPI:
     app.include_router(uploads_routes.router)
     app.include_router(notes_routes.router)
     app.include_router(tags_routes.router)
+    app.include_router(categories_routes.router)
     app.include_router(search_routes.router)
     app.include_router(flashcards_routes.router)
     app.include_router(system_routes.router)

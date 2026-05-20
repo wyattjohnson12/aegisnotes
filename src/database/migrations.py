@@ -73,8 +73,45 @@ def _migration_v1_to_v2(conn: sqlite3.Connection) -> None:
     _set_schema_version(conn, 2)
 
 
+def _migration_v2_to_v3(conn: sqlite3.Connection) -> None:
+    """Phase 5: add ``categories`` and ``note_categories`` tables.
+
+    The DDL lives in ``schema.sql`` too (``CREATE TABLE IF NOT EXISTS``),
+    so on a fresh boot ``apply_schema`` creates them first and this
+    migration is a no-op other than bumping the version. On existing v2
+    databases (e.g. Railway redeploy after a Phase 4 run) the
+    re-execution of the CREATE TABLE statements creates the tables.
+    """
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT NOT NULL,
+            normalized_name  TEXT NOT NULL UNIQUE,
+            created_at       TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS note_categories (
+            note_id     INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+            category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+            confidence  REAL NOT NULL DEFAULT 0.5
+                             CHECK (confidence >= 0.0 AND confidence <= 1.0),
+            PRIMARY KEY (note_id, category_id)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_note_categories_cat ON note_categories(category_id)"
+    )
+    _set_schema_version(conn, 3)
+
+
 _MIGRATIONS: List[Tuple[int, int, Callable[[sqlite3.Connection], None]]] = [
     (1, 2, _migration_v1_to_v2),
+    (2, 3, _migration_v2_to_v3),
 ]
 
 

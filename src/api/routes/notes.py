@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.api.dependencies import (
+    get_categories_repo,
     get_flashcards_repo,
     get_links_repo,
     get_notes_repo,
@@ -34,8 +35,9 @@ from src.api.dependencies import (
     require_csrf,
     require_current_user,
 )
-from src.database.models import Flashcard, Note, Summary, Tag, Topic, User
+from src.database.models import Category, Flashcard, Note, Summary, Tag, Topic, User
 from src.database.repositories import (
+    CategoriesRepository,
     FlashcardsRepository,
     LinksRepository,
     NotesRepository,
@@ -149,6 +151,22 @@ class RelatedNote(BaseModel):
     title: str
     strength: float
     shared_tags: List[str]
+
+
+class CategoryDTO(BaseModel):
+    id: int
+    name: str
+    normalized: str
+    confidence: float
+
+    @classmethod
+    def from_pair(cls, cat: Category, score: float) -> CategoryDTO:
+        return cls(
+            id=cat.id,
+            name=cat.name,
+            normalized=cat.normalized_name,
+            confidence=float(score),
+        )
 
 
 class FlashcardDTO(BaseModel):
@@ -271,6 +289,19 @@ def get_tags(
     return {"tags": [TagDTO.from_pair(t, s).model_dump() for t, s in pairs]}
 
 
+@router.get("/{note_id}/categories", response_model=None)
+def get_categories(
+    note_id: int,
+    user: User = Depends(require_current_user),
+    notes_repo: NotesRepository = Depends(get_notes_repo),
+    categories_repo: CategoriesRepository = Depends(get_categories_repo),
+) -> dict:
+    if notes_repo.get(note_id) is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    pairs = categories_repo.list_for_note(note_id)
+    return {"categories": [CategoryDTO.from_pair(c, s).model_dump() for c, s in pairs]}
+
+
 @router.get("/{note_id}/links", response_model=None)
 def get_links(
     note_id: int,
@@ -354,6 +385,7 @@ def reanalyze(
             "summary_chars": outcome.summary_chars,
             "links": outcome.links,
             "flashcards": outcome.flashcards,
+            "categories": outcome.categories,
             "skipped": outcome.skipped,
             "error": outcome.error,
         }

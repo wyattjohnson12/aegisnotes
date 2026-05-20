@@ -144,6 +144,25 @@ CREATE INDEX IF NOT EXISTS idx_links_a ON note_links(note_id_a);
 CREATE INDEX IF NOT EXISTS idx_links_b ON note_links(note_id_b);
 
 -- ---------------------------------------------------------------------------
+-- Categories (Phase 5)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS categories (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    name             TEXT NOT NULL,
+    normalized_name  TEXT NOT NULL UNIQUE,
+    created_at       TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS note_categories (
+    note_id     INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    confidence  REAL NOT NULL DEFAULT 0.5
+                     CHECK (confidence >= 0.0 AND confidence <= 1.0),
+    PRIMARY KEY (note_id, category_id)
+);
+CREATE INDEX IF NOT EXISTS idx_note_categories_cat ON note_categories(category_id);
+
+-- ---------------------------------------------------------------------------
 -- System logs
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS system_logs (

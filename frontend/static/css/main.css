@@ -252,6 +252,11 @@ button.link-btn:hover { text-decoration: underline; }
 }
 button.chip.tag-chip { cursor: pointer; }
 button.chip.tag-chip:hover { border-color: var(--accent); }
+button.chip.cat-chip {
+    cursor: pointer;
+    border-color: rgba(157, 123, 255, 0.55);
+}
+button.chip.cat-chip:hover { border-color: var(--accent-2); }
 
 .topic-tree, .topic-tree ul { list-style: none; padding-left: 14px; margin: 0; }
 .topic-tree > li > details { margin-bottom: 4px; }
@@ -322,6 +327,8 @@ body.modal-open { overflow: hidden; }
     z-index: 100;
     padding: 20px;
 }
+/* The HTML `hidden` attribute must override the grid display above. */
+.study-modal[hidden] { display: none !important; }
 .study-shell {
     width: min(620px, 100%);
     background: var(--panel);

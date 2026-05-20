@@ -126,4 +126,11 @@ export const endpoints = {
                     return api.getJson(`/api/flashcards/review?${params}`);
                   },
     flashcardStats: () => api.getJson("/api/flashcards/stats"),
+    categories:   (limit = 200) => api.getJson(`/api/categories?limit=${limit}`),
+    notesForCategory:
+                  (name) => api.getJson(`/api/categories/${encodeURIComponent(name)}/notes`),
+    noteCategories:
+                  (id) => api.getJson(`/api/notes/${id}/categories`),
+    recomputeCategories:
+                  () => api.postJson("/api/categories/recompute", {}),
 };

@@ -102,6 +102,24 @@ class NoteTag:
 
 
 # ----------------------------------------------------------------------------
+# Categories (Phase 5)
+# ----------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Category:
+    id: int
+    name: str
+    normalized_name: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class NoteCategory:
+    note_id: int
+    category_id: int
+    confidence: float
+
+
+# ----------------------------------------------------------------------------
 # Summaries & flashcards
 # ----------------------------------------------------------------------------
 @dataclass(frozen=True)

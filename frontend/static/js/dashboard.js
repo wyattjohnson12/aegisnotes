@@ -17,6 +17,9 @@ const searchInput = document.getElementById("search-input");
 const searchOut   = document.getElementById("search-results");
 const tagsCloud   = document.getElementById("tags-cloud");
 const tagsRefresh = document.getElementById("tags-refresh-btn");
+const catsCloud   = document.getElementById("categories-cloud");
+const catsRefresh = document.getElementById("categories-refresh-btn");
+const catsRecomp  = document.getElementById("categories-recompute-btn");
 const fcCount     = document.getElementById("flashcards-count");
 const studyBtn    = document.getElementById("study-start-btn");
 const studyModal  = document.getElementById("study-modal");
@@ -118,6 +121,9 @@ async function renderNoteDetail(cell, note) {
             <div class="intel-block" id="flashcards-${note.id}">
                 <h4>Flashcards</h4><p class="muted">loading…</p>
             </div>
+            <div class="intel-block" id="categories-${note.id}">
+                <h4>Categories</h4><p class="muted">loading…</p>
+            </div>
         </div>
         <details class="ocr-toggle">
             <summary>Raw OCR text</summary>
@@ -143,18 +149,64 @@ async function renderNoteDetail(cell, note) {
 }
 
 async function loadIntelligence(noteId) {
-    const [sumRes, tagRes, topRes, linkRes, fcRes] = await Promise.allSettled([
+    const [sumRes, tagRes, topRes, linkRes, fcRes, catRes] = await Promise.allSettled([
         endpoints.noteSummary(noteId),
         endpoints.noteTags(noteId),
         endpoints.noteTopics(noteId),
         endpoints.noteLinks(noteId),
         endpoints.noteFlashcards(noteId),
+        endpoints.noteCategories(noteId),
     ]);
     renderSummary(noteId, sumRes);
     renderTagsBlock(noteId, tagRes);
     renderTopicsBlock(noteId, topRes);
     renderLinksBlock(noteId, linkRes);
     renderFlashcardsBlock(noteId, fcRes);
+    renderCategoriesBlock(noteId, catRes);
+}
+
+function renderCategoriesBlock(noteId, res) {
+    const el = document.getElementById(`categories-${noteId}`);
+    if (!el) return;
+    const cats = res.status === "fulfilled" ? (res.value.categories || []) : [];
+    if (!cats.length) {
+        el.innerHTML = `<h4>Categories</h4><p class="muted">No category yet.</p>`;
+        return;
+    }
+    const chips = cats.map((c) =>
+        `<button class="chip cat-chip" data-cat="${escapeHtml(c.normalized)}"
+                 title="confidence ${(c.confidence * 100).toFixed(0)}%">
+            ${escapeHtml(c.name)}
+         </button>`
+    ).join(" ");
+    el.innerHTML = `<h4>Categories</h4><div class="chip-row">${chips}</div>`;
+    el.querySelectorAll(".cat-chip").forEach((b) => {
+        b.addEventListener("click", (e) => {
+            e.stopPropagation();
+            showCategoryNotes(b.dataset.cat, b.textContent.trim());
+        });
+    });
+}
+
+async function showCategoryNotes(normalized, label) {
+    searchInput.value = `category:${label}`;
+    searchOut.innerHTML = `<p class="muted">loading category…</p>`;
+    try {
+        const res = await endpoints.notesForCategory(normalized);
+        if (!res.notes?.length) {
+            searchOut.innerHTML = `<p class="muted">No notes in category "${escapeHtml(label)}".</p>`;
+            return;
+        }
+        searchOut.innerHTML = `<ul class="search-list">${res.notes.map((n) => `
+            <li>
+                <strong>${escapeHtml(n.title)}</strong>
+                <span class="muted small">· note #${n.id} · ${n.chars} chars</span>
+                <p class="muted small">${escapeHtml(fmtTime(n.created_at))}</p>
+            </li>
+        `).join("")}</ul>`;
+    } catch (err) {
+        searchOut.innerHTML = `<p class="error">${escapeHtml(err.message)}</p>`;
+    }
 }
 
 function renderFlashcardsBlock(noteId, res) {
@@ -272,6 +324,29 @@ async function refreshStatus() {
     }
 }
 
+// ---------------- Categories cloud ----------------
+async function refreshCategories() {
+    catsCloud.textContent = "loading…";
+    try {
+        const res = await endpoints.categories(200);
+        if (!res.categories?.length) {
+            catsCloud.textContent = "No categories yet.";
+            return;
+        }
+        catsCloud.innerHTML = res.categories.map((c) =>
+            `<button class="chip cat-chip" data-cat="${escapeHtml(c.normalized)}"
+                     title="${c.note_count} notes">
+                ${escapeHtml(c.name)} <span class="muted">${c.note_count}</span>
+             </button>`
+        ).join(" ");
+        catsCloud.querySelectorAll(".cat-chip").forEach((b) => {
+            b.addEventListener("click", () => showCategoryNotes(b.dataset.cat, b.textContent.trim().split(" ")[0]));
+        });
+    } catch (err) {
+        catsCloud.innerHTML = `<span class="error">${escapeHtml(err.message)}</span>`;
+    }
+}
+
 // ---------------- Tag cloud ----------------
 async function refreshTags() {
     tagsCloud.textContent = "loading…";
@@ -324,6 +399,7 @@ endpoints.me().then((res) => {
     refreshUploads();
     refreshStatus();
     refreshTags();
+    refreshCategories();
     setInterval(refreshUploads, 5000);
     setInterval(refreshStatus, 10000);
 }).catch(() => window.location.replace("/login"));
@@ -372,6 +448,20 @@ uploadForm.addEventListener("submit", async (evt) => {
 statusSel.addEventListener("change", refreshUploads);
 refreshBtn.addEventListener("click", refreshUploads);
 tagsRefresh.addEventListener("click", refreshTags);
+catsRefresh.addEventListener("click", refreshCategories);
+catsRecomp.addEventListener("click", async () => {
+    catsRecomp.disabled = true;
+    catsRecomp.textContent = "recomputing…";
+    try {
+        await endpoints.recomputeCategories();
+        await refreshCategories();
+    } catch (err) {
+        alert("Recompute failed: " + err.message);
+    } finally {
+        catsRecomp.disabled = false;
+        catsRecomp.textContent = "Recompute";
+    }
+});
 searchForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const q = searchInput.value.trim();
@@ -444,6 +534,10 @@ function closeStudy() {
 
 studyBtn.addEventListener("click", () => startStudy());
 studyClose.addEventListener("click", closeStudy);
+studyModal.addEventListener("click", (e) => {
+    // Click on the backdrop (not the shell) closes the modal.
+    if (e.target === studyModal) closeStudy();
+});
 studyNext.addEventListener("click", () => studyAdvance(1));
 studyPrev.addEventListener("click", () => studyAdvance(-1));
 studyFlip.addEventListener("click", () => { studyShowingBack = !studyShowingBack; renderStudy(); });

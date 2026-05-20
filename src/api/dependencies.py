@@ -8,6 +8,7 @@ from fastapi import Depends, HTTPException, Request, status
 from src.api.security import csrf_ok, read_session_cookie
 from src.database.models import User
 from src.database.repositories import (
+    CategoriesRepository,
     FlashcardsRepository,
     LinksRepository,
     LogsRepository,
@@ -65,6 +66,10 @@ def get_links_repo() -> LinksRepository:
 
 def get_flashcards_repo() -> FlashcardsRepository:
     return FlashcardsRepository()
+
+
+def get_categories_repo() -> CategoriesRepository:
+    return CategoriesRepository()
 
 
 # ----------------------------------------------------------------------------

@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from src.database.repositories import (
+    CategoriesRepository,
     FlashcardsRepository,
     LinksRepository,
     LogsRepository,
@@ -33,6 +34,7 @@ from src.database.repositories import (
     TagsRepository,
     TopicsRepository,
 )
+from src.intelligence.categorizer import Categorizer
 from src.intelligence.cleaner import clean_for_intelligence
 from src.intelligence.flashcard_generator import FlashcardGenerator
 from src.intelligence.linker import SimilarityLinker
@@ -53,6 +55,7 @@ class IntelligenceOutcome:
     summary_chars: int = 0
     links: int = 0
     flashcards: int = 0
+    categories: int = 0
     skipped: bool = False
     error: Optional[str] = None
 
@@ -69,12 +72,14 @@ class IntelligenceProcessor:
         summaries_repo: Optional[SummariesRepository] = None,
         links_repo: Optional[LinksRepository] = None,
         flashcards_repo: Optional[FlashcardsRepository] = None,
+        categories_repo: Optional[CategoriesRepository] = None,
         logs_repo: Optional[LogsRepository] = None,
         parser: Optional[StructuralParser] = None,
         tag_extractor: Optional[TagExtractor] = None,
         summarizer: Optional[Summarizer] = None,
         linker: Optional[SimilarityLinker] = None,
         flashcard_generator: Optional[FlashcardGenerator] = None,
+        categorizer: Optional[Categorizer] = None,
     ) -> None:
         self._notes = notes_repo or NotesRepository()
         self._topics = topics_repo or TopicsRepository()
@@ -82,12 +87,19 @@ class IntelligenceProcessor:
         self._summaries = summaries_repo or SummariesRepository()
         self._links = links_repo or LinksRepository()
         self._flashcards = flashcards_repo or FlashcardsRepository()
+        self._categories = categories_repo or CategoriesRepository()
         self._logs = logs_repo or LogsRepository()
         self._parser = parser or StructuralParser()
         self._tag_extractor = tag_extractor or TagExtractor()
         self._summarizer = summarizer or Summarizer()
         self._linker = linker or SimilarityLinker()
         self._flashcard_generator = flashcard_generator or FlashcardGenerator()
+        self._categorizer = categorizer or Categorizer(
+            notes_repo=self._notes,
+            tags_repo=self._tags,
+            links_repo=self._links,
+            categories_repo=self._categories,
+        )
 
     # ------------------------------------------------------------------
     def process(self, note_id: int) -> IntelligenceOutcome:
@@ -182,6 +194,18 @@ class IntelligenceProcessor:
                 self._logs.write(level="WARNING", source="intelligence.flashcards",
                                  message="write failed", context={"note_id": note_id})
 
+            # ------------------------------------------------------------------
+            # 7. Categories
+            # ------------------------------------------------------------------
+            categories_assigned = 0
+            try:
+                outcome = self._categorizer.categorize(note_id)
+                categories_assigned = len(outcome.categories)
+            except Exception:  # noqa: BLE001
+                log.exception("category write failed for note_id=%s", note_id)
+                self._logs.write(level="WARNING", source="intelligence.categories",
+                                 message="write failed", context={"note_id": note_id})
+
             self._logs.write(
                 level="INFO",
                 source="intelligence.processor",
@@ -193,12 +217,15 @@ class IntelligenceProcessor:
                     "summary_chars": summary_chars,
                     "links": links,
                     "flashcards": flashcards_written,
+                    "categories": categories_assigned,
                     "corpus_size": index.n_docs,
                 },
             )
             log.info(
-                "Intelligence analysed note_id=%s topics=%s tags=%s summary=%schars links=%s flashcards=%s",
-                note_id, topics, tags, summary_chars, links, flashcards_written,
+                "Intelligence analysed note_id=%s topics=%s tags=%s summary=%schars "
+                "links=%s flashcards=%s categories=%s",
+                note_id, topics, tags, summary_chars, links,
+                flashcards_written, categories_assigned,
             )
             return IntelligenceOutcome(
                 note_id=note_id,
@@ -207,6 +234,7 @@ class IntelligenceProcessor:
                 summary_chars=summary_chars,
                 links=links,
                 flashcards=flashcards_written,
+                categories=categories_assigned,
             )
 
         except Exception as exc:  # noqa: BLE001

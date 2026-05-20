@@ -15,6 +15,7 @@ from src.database.repositories.tags_repo import TagsRepository
 from src.database.repositories.summaries_repo import SummariesRepository
 from src.database.repositories.links_repo import LinksRepository
 from src.database.repositories.flashcards_repo import FlashcardsRepository
+from src.database.repositories.categories_repo import CategoriesRepository
 
 __all__ = [
     "UsersRepository",
@@ -27,4 +28,5 @@ __all__ = [
     "SummariesRepository",
     "LinksRepository",
     "FlashcardsRepository",
+    "CategoriesRepository",
 ]
