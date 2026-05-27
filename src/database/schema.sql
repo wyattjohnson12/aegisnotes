@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS note_links (
                       CHECK (strength >= 0.0 AND strength <= 1.0),
     shared_tags  TEXT NOT NULL DEFAULT '[]',
     created_at   TEXT NOT NULL,
+    algorithm    TEXT NOT NULL DEFAULT 'tfidf_cosine_v1',
     CHECK (note_id_a < note_id_b),
     UNIQUE (note_id_a, note_id_b)
 );

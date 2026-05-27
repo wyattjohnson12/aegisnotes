@@ -54,12 +54,12 @@ def logs(
     return {
         "logs": [
             {
-                "id": r["id"],
-                "level": r["level"],
-                "source": r["source"],
-                "message": r["message"],
-                "context": r["context"],
-                "created_at": r["created_at"],
+                "id": r.id,
+                "level": r.level,
+                "source": r.source,
+                "message": r.message,
+                "context": r.context,
+                "created_at": r.created_at,
             }
             for r in rows
         ]

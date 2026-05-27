@@ -400,8 +400,10 @@ endpoints.me().then((res) => {
     refreshStatus();
     refreshTags();
     refreshCategories();
+    refreshFlashcardStats();
     setInterval(refreshUploads, 5000);
     setInterval(refreshStatus, 10000);
+    setInterval(refreshFlashcardStats, 15000);
 }).catch(() => window.location.replace("/login"));
 
 logoutBtn.addEventListener("click", async () => {
@@ -550,6 +552,3 @@ document.addEventListener("keydown", (e) => {
     else if (e.key === "ArrowRight") { studyAdvance(1); }
     else if (e.key === "ArrowLeft")  { studyAdvance(-1); }
 });
-
-refreshFlashcardStats();
-setInterval(refreshFlashcardStats, 15000);

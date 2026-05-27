@@ -65,7 +65,13 @@ class TfIdfIndex:
             for term in tf_map:
                 df[term] = df.get(term, 0) + 1
 
-        max_df_count = max(int(self._n_docs * max_df_ratio), 1)
+        # For small corpora (< 5 docs), disable the max_df filter entirely
+        # so that shared terms still contribute to cosine similarity.
+        # Otherwise int(N * 0.85) can round down to exclude all shared terms.
+        if self._n_docs < 5:
+            max_df_count = self._n_docs
+        else:
+            max_df_count = max(int(self._n_docs * max_df_ratio), 1)
         self._idf: Dict[str, float] = {}
         for term, count in df.items():
             if count < min_df or count > max_df_count:

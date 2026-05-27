@@ -11,7 +11,19 @@ import sqlite3
 from typing import Any, List, Optional
 
 from src.database.connection import get_connection
+from src.database.models import LogEntry
 from src.utils.time_utils import isoformat_utc
+
+
+def _row_to_log_entry(row: sqlite3.Row) -> LogEntry:
+    return LogEntry(
+        id=row["id"],
+        level=row["level"],
+        source=row["source"],
+        message=row["message"],
+        context=row["context"],
+        created_at=row["created_at"],
+    )
 
 
 class LogsRepository:
@@ -40,7 +52,7 @@ class LogsRepository:
         level: Optional[str] = None,
         limit: int = 200,
         offset: int = 0,
-    ) -> List[sqlite3.Row]:
+    ) -> List[LogEntry]:
         sql = "SELECT * FROM system_logs"
         params: list[object] = []
         if level:
@@ -49,4 +61,5 @@ class LogsRepository:
         sql += " ORDER BY id DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         with get_connection(readonly=True) as conn:
-            return list(conn.execute(sql, params).fetchall())
+            rows = conn.execute(sql, params).fetchall()
+        return [_row_to_log_entry(r) for r in rows]

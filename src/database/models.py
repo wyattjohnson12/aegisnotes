@@ -153,3 +153,16 @@ class NoteLink:
     strength: float
     shared_tags: List[str]
     created_at: str
+
+
+# ----------------------------------------------------------------------------
+# System logs
+# ----------------------------------------------------------------------------
+@dataclass(frozen=True)
+class LogEntry:
+    id: int
+    level: str
+    source: str
+    message: str
+    context: Optional[str]
+    created_at: str

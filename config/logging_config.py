@@ -62,6 +62,5 @@ def configure_logging(level: Optional[str] = None) -> None:
     # Calm down very chatty third-party loggers.
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("multipart").setLevel(logging.WARNING)
-    logging.getLogger("watchdog").setLevel(logging.WARNING)
 
     _configured = True
